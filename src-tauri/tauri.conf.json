@@ -27,9 +27,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["assets/app-icon.png"],
-    "resources": {
-      "sidecar/dist/curator-sidecar": "curator-sidecar"
-    }
+    "icon": ["assets/app-icon.png"]
   }
 }
