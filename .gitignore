@@ -1,0 +1,8 @@
+.agents/**
+.vscode/**
+.venv/**
+.env/**
+
+
+.env
+.github
