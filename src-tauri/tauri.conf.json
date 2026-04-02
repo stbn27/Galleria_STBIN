@@ -1,0 +1,35 @@
+{
+  "productName": "Curator",
+  "version": "1.0.0",
+  "identifier": "com.curator.gallery",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Curator",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["assets/app-icon.png"],
+    "resources": {
+      "sidecar/dist/curator-sidecar": "curator-sidecar"
+    }
+  }
+}

@@ -2,6 +2,22 @@
 .vscode/**
 .venv/**
 .env/**
+node_modules/**
+src-tauri/target/**
+src-tauri/binaries/**
+sidecar/.venv/**
+sidecar/lib/**
+sidecar/bin/**
+sidecar/logs/**
+sidecar/data/**
+sidecar/tmp/**
+sidecar/lib64/**
+sidecar/lib32/**
+
+# Directorios de imagenes y videos
+/media/**
+/imagenes/**
+/videos/**
 
 
 .env

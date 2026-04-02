@@ -1,0 +1,25 @@
+[package]
+name = "curator"
+version = "1.0.0"
+description = "Curator Gallery"
+authors = ["Esteban"]
+license = "MIT"
+repository = "https://github.com/esteban/curator"
+edition = "2021"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.0", features = [] }
+tauri-plugin-shell = "2.0.0"
+tauri-plugin-fs = "2.0.0"
+tauri-plugin-dialog = "2.0.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[features]
+# this feature is used for production builds or when `devPath` points to the filesystem
+# DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]

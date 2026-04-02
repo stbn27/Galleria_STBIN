@@ -1,4 +1,4 @@
-# 🎨 Curator — Galería Fotográfica Portátil
+# 🎨 STBIN — Galería Fotográfica Portátil
 
 Galería fotográfica portátil con detección de rostros, agrupación por persona, visualización local y organización inteligente. La prioridad principal es Linux y funcionamiento local portable.
 
