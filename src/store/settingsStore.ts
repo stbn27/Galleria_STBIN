@@ -1,27 +1,39 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface SettingsState {
-  language: string;
-  theme: 'light' | 'dark';
-  portableDataPath: string | null;
-  scanningPolicy: 'automatic' | 'manual';
-  cacheSizeLimit: number; // in MB
-  setLanguage: (lang: string) => void;
-  setTheme: (theme: 'light' | 'dark') => void;
-  setPortableDataPath: (path: string | null) => void;
+  language: 'es';
+  scanPolicy: 'manual' | 'startup';
+  cacheSizeMb: number;
+  dataDirMode: 'data';
+  mapMode: 'offline-first' | 'online-when-needed';
+  readonlyMode: boolean;
+  
+  setLanguage: (value: 'es') => void;
+  setScanPolicy: (value: 'manual' | 'startup') => void;
+  setCacheSizeMb: (value: number) => void;
+  setMapMode: (value: 'offline-first' | 'online-when-needed') => void;
+  setReadonlyMode: (value: boolean) => void;
 }
 
-/**
- * Store para la configuración global de Curator.
- * Base estructural para futuras expansiones según el Planner 01.
- */
-export const useSettingsStore = create<SettingsState>((set) => ({
-  language: 'es',
-  theme: 'dark',
-  portableDataPath: null,
-  scanningPolicy: 'automatic',
-  cacheSizeLimit: 1024,
-  setLanguage: (language) => set({ language }),
-  setTheme: (theme) => set({ theme }),
-  setPortableDataPath: (portableDataPath) => set({ portableDataPath }),
-}));
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      language: 'es',
+      scanPolicy: 'manual',
+      cacheSizeMb: 1024, // 1GB default
+      dataDirMode: 'data',
+      mapMode: 'offline-first',
+      readonlyMode: false,
+
+      setLanguage: (value) => set({ language: value }),
+      setScanPolicy: (value) => set({ scanPolicy: value }),
+      setCacheSizeMb: (value) => set({ cacheSizeMb: value }),
+      setMapMode: (value) => set({ mapMode: value }),
+      setReadonlyMode: (value) => set({ readonlyMode: value }),
+    }),
+    {
+      name: 'curator-settings-storage',
+    }
+  )
+);
