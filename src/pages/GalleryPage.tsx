@@ -13,9 +13,18 @@ const GalleryPage: React.FC = () => {
   const { images, loading, scanning, error, fetchImages, scanImages, initThumbnailListener } = useImageStore();
   const { openViewer } = useUiStore();
 
+  // Carga inicial rápida desde la BD e inicio de escaneo silencioso
   useEffect(() => {
-    fetchImages();
-  }, [fetchImages]);
+    let isMounted = true;
+    fetchImages().then(() => {
+      // Solo escanea automáticamente si es la primera carga de la vista
+      if (isMounted) {
+        scanImages();
+      }
+    });
+    return () => { isMounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Escuchar el evento 'thumbnail-ready' emitido por Rust cuando una miniatura
   // está lista; actualiza el item directamente sin refetch completo.

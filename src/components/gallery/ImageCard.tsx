@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Star, Play, AlertCircle } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { type MediaItem } from '../../types/media';
 import { useUiStore } from '../../store/uiStore';
+import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 
 interface ImageCardProps {
   item: MediaItem;
@@ -24,6 +25,12 @@ const ImageCard: React.FC<ImageCardProps> = ({ item, onClick }) => {
   const isVideo = item.media_type === 'video';
   const isFavorite = item.is_favorite === 1;
 
+  // Ref para el intersection observer
+  const cardRef = useRef<HTMLDivElement>(null);
+  
+  // Agregar rootMargin para cargar imágenes un poco antes de que entren a la pantalla o mantenerlas si salen poco
+  const inView = useIntersectionObserver(cardRef, { rootMargin: '300px' });
+
   // Solamente utilizar thumbnail_path. Si no existe, mostrar placeholder para no saturar RAM con la imagen original.
   const imageSrc = !isCorrupted && item.thumbnail_path ? convertFileSrc(item.thumbnail_path) : null;
 
@@ -36,40 +43,43 @@ const ImageCard: React.FC<ImageCardProps> = ({ item, onClick }) => {
     }
   };
 
+  const aspectRatioStyle = item.width && item.height
+    ? `${item.width} / ${item.height}`
+    : '1 / 1';
+
   return (
     <div
+      ref={cardRef}
       className="image-card relative cursor-pointer overflow-hidden group bg-[var(--bg-tertiary)]"
-      style={{ borderRadius: 'var(--radius-md)' }}
+      style={{
+        borderRadius: 'var(--radius-md)',
+        aspectRatio: aspectRatioStyle,
+        minHeight: '120px',
+      }}
       onClick={onClick}
     >
       {/* Contenido de la imagen o placeholder */}
       {isCorrupted ? (
-        <div className="w-full aspect-square bg-[var(--bg-tertiary)] flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
           <AlertCircle size={28} />
           <span className="text-xs text-center px-2">
             {isVideo ? 'No se pudo abrir el video' : 'No se pudo abrir la imagen'}
           </span>
         </div>
       ) : !imageSrc ? (
-         <div className="w-full aspect-square bg-[var(--bg-tertiary)] flex flex-col items-center justify-center text-[var(--text-muted)] gap-2 animate-pulse">
+         <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-muted)] gap-2 animate-pulse">
            <div className="w-8 h-8 rounded-full border-2 border-[var(--text-muted)] border-t-transparent animate-spin" />
            <span className="text-xs text-center px-2">Procesando...</span>
          </div>
-      ) : (
+      ) : inView ? (
         <img
           src={imageSrc}
           alt={item.filename}
           loading="lazy"
           decoding="async"
           className="w-full h-full block object-cover transition-opacity duration-300"
-          style={{
-            aspectRatio: item.width && item.height
-              ? `${item.width} / ${item.height}`
-              : '1 / 1',
-            minHeight: '120px',
-          }}
         />
-      )}
+      ) : null}
 
       {/* Overlay de selección */}
       {isSelected && (

@@ -1,12 +1,26 @@
+use std::sync::{Arc, OnceLock};
+
 use serde::Serialize;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter, State};
+use tokio::sync::Semaphore;
 use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::db::schema::Image;
 use crate::utils::paths::get_scan_roots;
 use crate::utils::thumbnails;
+
+/// Semáforo global que limita la concurrencia de generación de miniaturas.
+/// Máximo 4 tareas simultáneas para no colapsar la CPU.
+static THUMBNAIL_SEMAPHORE: OnceLock<Arc<Semaphore>> = OnceLock::new();
+
+/// Obtiene (o inicializa) el semáforo compartido de miniaturas.
+fn thumbnail_semaphore() -> Arc<Semaphore> {
+    THUMBNAIL_SEMAPHORE
+        .get_or_init(|| Arc::new(Semaphore::new(4)))
+        .clone()
+}
 
 /// Payload del evento `thumbnail-ready` emitido al frontend.
 #[derive(Debug, Clone, Serialize)]
@@ -158,15 +172,18 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
                         inserted += 1;
                         println!("[scan] ✓ Insertado: {}", filename);
 
-                        // Generar miniatura en segundo plano para no bloquear el bucle
+                        // Generar miniatura en segundo plano con concurrencia limitada
                         if media_type == "image" {
                             let pool_clone = pool.inner().clone();
                             let path_clone = path.to_path_buf();
                             let id_clone = id.clone();
                             let ext_clone = ext.to_string();
                             let app_clone = app.clone();
+                            let sem = thumbnail_semaphore();
 
                             tokio::spawn(async move {
+                                // Adquirir permiso — bloquea hasta que haya un slot libre
+                                let _permit = sem.acquire_owned().await;
                                 if let Some(thumb_path) = thumbnails::generate_and_update(
                                     &pool_clone,
                                     &path_clone,
@@ -178,6 +195,7 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
                                         thumbnail_path: thumb_path,
                                     });
                                 }
+                                // _permit se libera aquí automáticamente (Drop)
                             });
                         }
                     } else {
@@ -189,6 +207,43 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
                     println!("[scan] ✗ Error al insertar {}: {}", path_str, e);
                 }
             }
+        }
+    }
+
+    // --- RECUPERACIÓN DE MINIATURAS PENDIENTES (Auto-Sanación) ---
+    let pending_thumbs: Vec<(String, String, Option<String>)> = sqlx::query_as(
+        "SELECT id, path, extension FROM images WHERE thumbnail_status = 'pending' AND media_type = 'image'"
+    )
+    .fetch_all(pool.inner())
+    .await
+    .unwrap_or_default();
+
+    if !pending_thumbs.is_empty() {
+        println!("[scan] Recuperando {} miniaturas zombies...", pending_thumbs.len());
+        for (id, path, ext_opt) in pending_thumbs {
+            let pool_clone = pool.inner().clone();
+            let path_clone = std::path::PathBuf::from(path);
+            let id_clone = id.clone();
+            let ext_clone = ext_opt.unwrap_or_default();
+            let app_clone = app.clone();
+            let sem = thumbnail_semaphore();
+
+            tokio::spawn(async move {
+                // Adquirir permiso del semáforo compartido
+                let _permit = sem.acquire_owned().await;
+                if let Some(thumb_path) = thumbnails::generate_and_update(
+                    &pool_clone,
+                    &path_clone,
+                    &id_clone,
+                    &ext_clone,
+                ).await {
+                    let _ = app_clone.emit("thumbnail-ready", ThumbnailReadyPayload {
+                        id: id_clone,
+                        thumbnail_path: thumb_path,
+                    });
+                }
+                // _permit se libera aquí automáticamente (Drop)
+            });
         }
     }
 
