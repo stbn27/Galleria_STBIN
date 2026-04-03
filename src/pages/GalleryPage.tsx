@@ -10,19 +10,13 @@ import { useUiStore } from '../store/uiStore';
  * Muestra una grilla CSS responsiva con las imágenes cargadas desde el backend.
  */
 const GalleryPage: React.FC = () => {
-  const { images, loading, scanning, error, fetchImages, scanImages, initThumbnailListener } = useImageStore();
+  const { images, loading, scanning, error, fetchImages, scanImages, requestThumbnail, initThumbnailListener } = useImageStore();
   const { openViewer } = useUiStore();
 
-  // Carga inicial rápida desde la BD e inicio de escaneo silencioso
+  // Carga inicial rápida desde la BD. El escaneo masivo queda manual para no
+  // recalentar CPU y evitar flashes al remontar la vista en desarrollo.
   useEffect(() => {
-    let isMounted = true;
-    fetchImages().then(() => {
-      // Solo escanea automáticamente si es la primera carga de la vista
-      if (isMounted) {
-        scanImages();
-      }
-    });
-    return () => { isMounted = false; };
+    fetchImages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -117,7 +111,10 @@ const GalleryPage: React.FC = () => {
             <ImageCard
               key={item.id}
               item={item}
-              onClick={() => openViewer(item.id)}
+              onClick={() => {
+                requestThumbnail(item.id);
+                openViewer(item.id);
+              }}
             />
           ))}
         </div>

@@ -9,7 +9,7 @@ export interface MediaItem {
   directory: string;
   extension: string | null;
   mime_type: string | null;
-  media_type: string; // 'image' | 'video'
+  media_type: 'image' | 'video';
 
   file_hash: string | null;
   binary_hash: string | null;
@@ -52,7 +52,7 @@ export interface MediaItem {
 
   discovery_status: string | null;
   metadata_status: string | null;
-  thumbnail_status: string | null;
+  thumbnail_status: 'missing' | 'queued' | 'processing' | 'ready' | 'error' | 'unsupported' | null;
   face_status: string | null;
   geocode_status: string | null;
 

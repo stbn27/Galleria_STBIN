@@ -1,11 +1,38 @@
-use sqlx::{SqlitePool, Error};
+use sqlx::{Error, SqlitePool};
 use super::schema::Image;
 
-/// Obtiene medios pendientes de miniatura
-pub async fn get_pending_thumbnails(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
-    sqlx::query_as::<_, Image>("SELECT * FROM images WHERE thumbnail_status = 'pending'")
+/// Obtiene medios cuyas miniaturas aún no se han solicitado.
+pub async fn get_missing_thumbnails(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
+    sqlx::query_as::<_, Image>(
+        "SELECT * FROM images
+         WHERE media_type = 'image'
+           AND thumbnail_status = 'missing'
+           AND has_read_permission = 1",
+    )
         .fetch_all(pool)
         .await
+}
+
+/// Obtiene medios con miniaturas en cola o en procesamiento.
+pub async fn get_active_thumbnail_jobs(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
+    sqlx::query_as::<_, Image>(
+        "SELECT * FROM images
+         WHERE media_type = 'image'
+           AND thumbnail_status IN ('queued', 'processing')",
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// Obtiene medios sin soporte de miniaturas para evitar loops de reproceso.
+pub async fn get_unsupported_thumbnails(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
+    sqlx::query_as::<_, Image>(
+        "SELECT * FROM images
+         WHERE media_type = 'image'
+           AND thumbnail_status = 'unsupported'",
+    )
+    .fetch_all(pool)
+    .await
 }
 
 /// Obtiene medios pendientes de detección facial

@@ -10,8 +10,7 @@ use tauri::Manager;
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            let data_dir = std::path::Path::new("data");
-            let db_path = data_dir.join("curator.db");
+            let db_path = utils::paths::get_db_path();
             
             let pool = tauri::async_runtime::block_on(async move {
                 db::init_db(&db_path).await.expect("Error al inicializar la base de datos")
@@ -30,6 +29,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::images::scan_local_media,
             commands::images::get_all_images,
+            commands::images::request_thumbnail,
+            commands::images::request_thumbnails_for_visible,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

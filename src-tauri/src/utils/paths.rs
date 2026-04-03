@@ -12,18 +12,24 @@ const EXCLUDED_DIRS: &[&str] = &[
 /// En producción, usa el directorio del ejecutable.
 pub fn get_root_dir() -> PathBuf {
     if cfg!(debug_assertions) {
-        // En dev, el CWD es src-tauri/. Subimos un nivel al root del proyecto.
+        // En dev, el CWD puede ser el root del proyecto o `src-tauri/`.
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let root = cwd.parent().unwrap_or(&cwd).to_path_buf();
-        println!("[paths] Modo desarrollo — CWD: {:?}", cwd);
-        println!("[paths] Raíz del proyecto resuelta: {:?}", root);
-        root
+        let is_src_tauri = cwd
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n == "src-tauri")
+            .unwrap_or(false);
+
+        if is_src_tauri {
+            cwd.parent().unwrap_or(&cwd).to_path_buf()
+        } else {
+            cwd
+        }
     } else {
         let exe_dir = std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
             .unwrap_or_else(|| PathBuf::from("."));
-        println!("[paths] Modo producción — directorio del ejecutable: {:?}", exe_dir);
         exe_dir
     }
 }
@@ -71,8 +77,6 @@ pub fn get_scan_roots() -> Vec<PathBuf> {
     let root = get_root_dir();
     let mut roots = Vec::new();
 
-    println!("[scan_roots] Buscando subdirectorios en: {:?}", root);
-
     match std::fs::read_dir(&root) {
         Ok(entries) => {
             for entry in entries.flatten() {
@@ -86,23 +90,17 @@ pub fn get_scan_roots() -> Vec<PathBuf> {
                 };
                 // Excluir directorios internos
                 if EXCLUDED_DIRS.iter().any(|&ex| dir_name.to_lowercase() == ex) {
-                    println!("[scan_roots]   Excluido (interno): {}", dir_name);
                     continue;
                 }
                 // Excluir directorios ocultos (empiezan con .)
                 if dir_name.starts_with('.') {
-                    println!("[scan_roots]   Excluido (oculto): {}", dir_name);
                     continue;
                 }
-                println!("[scan_roots]   ✓ Incluido: {:?}", path);
                 roots.push(path);
             }
         }
-        Err(e) => {
-            println!("[scan_roots] ERROR al leer directorio {:?}: {}", root, e);
-        }
+        Err(_) => {}
     }
 
-    println!("[scan_roots] Total de raíces de escaneo: {}", roots.len());
     roots
 }

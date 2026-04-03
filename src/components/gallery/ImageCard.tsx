@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Star, Play, AlertCircle } from 'lucide-react';
+import React, { memo, useRef } from 'react';
+import { Star, Play, AlertCircle, ImageOff, Loader2 } from 'lucide-react';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { type MediaItem } from '../../types/media';
 import { useUiStore } from '../../store/uiStore';
@@ -27,12 +27,19 @@ const ImageCard: React.FC<ImageCardProps> = ({ item, onClick }) => {
 
   // Ref para el intersection observer
   const cardRef = useRef<HTMLDivElement>(null);
-  
-  // Agregar rootMargin para cargar imágenes un poco antes de que entren a la pantalla o mantenerlas si salen poco
-  const inView = useIntersectionObserver(cardRef, { rootMargin: '300px' });
 
-  // Solamente utilizar thumbnail_path. Si no existe, mostrar placeholder para no saturar RAM con la imagen original.
-  const imageSrc = !isCorrupted && item.thumbnail_path ? convertFileSrc(item.thumbnail_path) : null;
+  // Agregar rootMargin para cargar imágenes un poco antes de que entren a la pantalla o mantenerlas si salen poco
+  const inView = useIntersectionObserver(cardRef, { rootMargin: '120px' });
+
+  // Prioriza miniatura si existe; si no, usa imagen original en caliente para UX inmediata.
+  // En video se mantiene placeholder hasta tener preview/minithumb.
+  const imageSrc = !isCorrupted
+    ? item.thumbnail_path
+      ? convertFileSrc(item.thumbnail_path)
+      : !isVideo
+        ? convertFileSrc(item.path)
+        : null
+    : null;
 
   const handleSelect = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -55,6 +62,8 @@ const ImageCard: React.FC<ImageCardProps> = ({ item, onClick }) => {
         borderRadius: 'var(--radius-md)',
         aspectRatio: aspectRatioStyle,
         minHeight: '120px',
+        contentVisibility: 'auto',
+        containIntrinsicSize: '200px 200px',
       }}
       onClick={onClick}
     >
@@ -67,10 +76,7 @@ const ImageCard: React.FC<ImageCardProps> = ({ item, onClick }) => {
           </span>
         </div>
       ) : !imageSrc ? (
-         <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-muted)] gap-2 animate-pulse">
-           <div className="w-8 h-8 rounded-full border-2 border-[var(--text-muted)] border-t-transparent animate-spin" />
-           <span className="text-xs text-center px-2">Procesando...</span>
-         </div>
+        <ThumbnailPlaceholder item={item} />
       ) : inView ? (
         <img
           src={imageSrc}
@@ -123,6 +129,51 @@ const ImageCard: React.FC<ImageCardProps> = ({ item, onClick }) => {
   );
 };
 
+function ThumbnailPlaceholder({ item }: { item: MediaItem }) {
+  if (item.media_type === 'video') {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
+        <Play size={20} />
+        <span className="text-xs text-center px-3">Preview de video al abrir.</span>
+      </div>
+    );
+  }
+
+  if (item.thumbnail_status === 'unsupported') {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
+        <ImageOff size={24} />
+        <span className="text-xs text-center px-3">Formato sin miniatura en esta versión.</span>
+      </div>
+    );
+  }
+
+  if (item.thumbnail_status === 'error') {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
+        <AlertCircle size={24} />
+        <span className="text-xs text-center px-3">No se pudo preparar la vista previa.</span>
+      </div>
+    );
+  }
+
+  if (item.thumbnail_status === 'queued' || item.thumbnail_status === 'processing') {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
+        <Loader2 size={20} className="animate-spin" />
+        <span className="text-xs text-center px-3">Preparando vista previa...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
+      <ImageOff size={24} />
+      <span className="text-xs text-center px-3">Vista previa disponible al abrir o al entrar en pantalla.</span>
+    </div>
+  );
+}
+
 /** Formatea duración en milisegundos a MM:SS */
 function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -131,4 +182,4 @@ function formatDuration(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-export default ImageCard;
+export default memo(ImageCard);

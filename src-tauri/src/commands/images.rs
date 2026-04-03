@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
 use serde::Serialize;
@@ -8,17 +9,17 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::db::schema::Image;
-use crate::utils::paths::get_scan_roots;
+use crate::utils::paths::{get_scan_roots, get_thumbnails_dir};
 use crate::utils::thumbnails;
 
 /// Semáforo global que limita la concurrencia de generación de miniaturas.
-/// Máximo 4 tareas simultáneas para no colapsar la CPU.
+/// Máximo 3 tareas simultáneas para no colapsar la CPU.
 static THUMBNAIL_SEMAPHORE: OnceLock<Arc<Semaphore>> = OnceLock::new();
 
 /// Obtiene (o inicializa) el semáforo compartido de miniaturas.
 fn thumbnail_semaphore() -> Arc<Semaphore> {
     THUMBNAIL_SEMAPHORE
-        .get_or_init(|| Arc::new(Semaphore::new(1)))
+    .get_or_init(|| Arc::new(Semaphore::new(3)))
         .clone()
 }
 
@@ -27,6 +28,14 @@ fn thumbnail_semaphore() -> Arc<Semaphore> {
 pub struct ThumbnailReadyPayload {
     pub id: String,
     pub thumbnail_path: String,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct DbThumbnailTarget {
+    id: String,
+    path: String,
+    extension: Option<String>,
+    thumbnail_status: Option<String>,
 }
 
 /// Extensiones de imagen soportadas.
@@ -62,6 +71,27 @@ fn detect_media_type(ext: &str) -> Option<&'static str> {
     }
 }
 
+fn thumbnail_cache_path_for_id(id: &str) -> PathBuf {
+    get_thumbnails_dir().join(format!("{}.jpg", id))
+}
+
+fn scan_thumbnail_status(id: &str, media_type: &str, ext: &str) -> &'static str {
+    if media_type != "image" {
+        return "unsupported";
+    }
+
+    let cache_path = thumbnail_cache_path_for_id(id);
+    if cache_path.exists() {
+        return "ready";
+    }
+
+    if thumbnails::can_generate_thumbnail(ext) {
+        "missing"
+    } else {
+        "unsupported"
+    }
+}
+
 /// Escanea los directorios locales de medios y registra archivos nuevos en la BD.
 ///
 /// Recorre recursivamente los directorios devueltos por `get_scan_roots()`,
@@ -69,19 +99,15 @@ fn detect_media_type(ext: &str) -> Option<&'static str> {
 /// (`discovery_status = 'found'`, demás estados en `'pending'`).
 /// Usa `INSERT OR IGNORE` para no duplicar entradas existentes por `path`.
 #[tauri::command]
-pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Result<u32, String> {
+pub async fn scan_local_media(pool: State<'_, SqlitePool>) -> Result<u32, String> {
     let roots = get_scan_roots();
     let mut inserted: u32 = 0;
     let mut scanned: u32 = 0;
     let mut skipped: u32 = 0;
 
     println!("[scan] Iniciando escaneo — {} raíces encontradas", roots.len());
-    for r in &roots {
-        println!("[scan]   Raíz: {:?}", r);
-    }
 
     for root in &roots {
-        println!("[scan] Recorriendo: {:?}", root);
         for entry in WalkDir::new(root)
             .follow_links(true)
             .into_iter()
@@ -147,12 +173,14 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
                     .to_string()
                 });
 
-            let id = Uuid::new_v4().to_string();
             let has_perm_int: i32 = if has_permission { 1 } else { 0 };
 
-            let result = sqlx::query(
+                        let id = Uuid::new_v4().to_string();
+                        let thumb_status = scan_thumbnail_status(&id, media_type, ext);
+
+                        let result = sqlx::query(
                 "INSERT OR IGNORE INTO images (id, path, filename, directory, extension, media_type, size_bytes, modified_at, has_read_permission, discovery_status, metadata_status, thumbnail_status, face_status, geocode_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'found', 'pending', 'pending', 'pending', 'pending')"
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'found', 'pending', ?, 'pending', 'pending')"
             )
             .bind(&id)
             .bind(&path_str)
@@ -163,6 +191,7 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
             .bind(size_bytes)
             .bind(&modified_at)
             .bind(has_perm_int)
+            .bind(thumb_status)
             .execute(pool.inner())
             .await;
 
@@ -170,37 +199,6 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
                 Ok(r) => {
                     if r.rows_affected() > 0 {
                         inserted += 1;
-                        println!("[scan] ✓ Insertado: {}", filename);
-
-                        // Generar miniatura en segundo plano con concurrencia limitada
-                        if media_type == "image" {
-                            let pool_clone = pool.inner().clone();
-                            let path_clone = path.to_path_buf();
-                            let id_clone = id.clone();
-                            let ext_clone = ext.to_string();
-                            let app_clone = app.clone();
-                            let sem = thumbnail_semaphore();
-
-                            tokio::spawn(async move {
-                                // Adquirir permiso — bloquea hasta que haya un slot libre
-                                let _permit = sem.acquire_owned().await;
-                                if let Some(thumb_path) = thumbnails::generate_and_update(
-                                    &pool_clone,
-                                    &path_clone,
-                                    &id_clone,
-                                    &ext_clone,
-                                ).await {
-                                    let _ = app_clone.emit("thumbnail-ready", ThumbnailReadyPayload {
-                                        id: id_clone,
-                                        thumbnail_path: thumb_path,
-                                    });
-                                }
-                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                                // _permit se libera aquí automáticamente (Drop)
-                            });
-                        }
-                    } else {
-                        println!("[scan] — Ya existe: {}", filename);
                     }
                 }
                 Err(e) => {
@@ -211,48 +209,142 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
         }
     }
 
-    // --- RECUPERACIÓN DE MINIATURAS PENDIENTES (Auto-Sanación) ---
-    let pending_thumbs: Vec<(String, String, Option<String>)> = sqlx::query_as(
-        "SELECT id, path, extension FROM images WHERE thumbnail_status = 'pending' AND media_type = 'image'"
-    )
-    .fetch_all(pool.inner())
-    .await
-    .unwrap_or_default();
-
-    if !pending_thumbs.is_empty() {
-        println!("[scan] Recuperando {} miniaturas zombies...", pending_thumbs.len());
-        for (id, path, ext_opt) in pending_thumbs {
-            let pool_clone = pool.inner().clone();
-            let path_clone = std::path::PathBuf::from(path);
-            let id_clone = id.clone();
-            let ext_clone = ext_opt.unwrap_or_default();
-            let app_clone = app.clone();
-            let sem = thumbnail_semaphore();
-
-            tokio::spawn(async move {
-                // Adquirir permiso del semáforo compartido
-                let _permit = sem.acquire_owned().await;
-                if let Some(thumb_path) = thumbnails::generate_and_update(
-                    &pool_clone,
-                    &path_clone,
-                    &id_clone,
-                    &ext_clone,
-                ).await {
-                    let _ = app_clone.emit("thumbnail-ready", ThumbnailReadyPayload {
-                        id: id_clone,
-                        thumbnail_path: thumb_path,
-                    });
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                // _permit se libera aquí automáticamente (Drop)
-            });
-        }
-    }
-
     println!("[scan] Escaneo finalizado — {} insertados, {} ya existentes, {} no soportados",
         inserted, scanned - inserted, skipped);
 
     Ok(inserted)
+}
+
+#[tauri::command]
+pub async fn request_thumbnail(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    image_id: String,
+) -> Result<(), String> {
+    request_thumbnail_inner(&app, pool.inner(), &image_id).await
+}
+
+#[tauri::command]
+pub async fn request_thumbnails_for_visible(
+    app: AppHandle,
+    pool: State<'_, SqlitePool>,
+    ids: Vec<String>,
+) -> Result<u32, String> {
+    // Deduplicar y recortar para evitar rafagas grandes por scroll rápido.
+    let mut deduped = std::collections::HashSet::new();
+    let mut queue = Vec::new();
+    for id in ids {
+        if deduped.insert(id.clone()) {
+            queue.push(id);
+        }
+        if queue.len() >= 32 {
+            break;
+        }
+    }
+
+    let mut processed = 0u32;
+    for id in &queue {
+        request_thumbnail_inner(&app, pool.inner(), id).await?;
+        processed += 1;
+    }
+
+    Ok(processed)
+}
+
+async fn request_thumbnail_inner(
+    app: &AppHandle,
+    pool: &SqlitePool,
+    image_id: &str,
+) -> Result<(), String> {
+    let row = sqlx::query_as::<_, DbThumbnailTarget>(
+        "SELECT id, path, extension, thumbnail_status FROM images WHERE id = ? LIMIT 1",
+    )
+    .bind(image_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| format!("Error al consultar medio {}: {}", image_id, e))?;
+
+    let target = match row {
+        Some(r) => r,
+        None => return Err(format!("Medio no encontrado: {}", image_id)),
+    };
+
+    if matches!(target.thumbnail_status.as_deref(), Some("queued") | Some("processing")) {
+        return Ok(());
+    }
+
+    let cache_path = thumbnail_cache_path_for_id(&target.id);
+    if cache_path.exists() {
+        let cache = cache_path.to_string_lossy().to_string();
+        sqlx::query(
+            "UPDATE images SET thumbnail_path = ?, thumbnail_status = 'ready', thumbnail_error = NULL WHERE id = ?",
+        )
+        .bind(&cache)
+        .bind(&target.id)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Error al marcar miniatura lista {}: {}", image_id, e))?;
+
+        let _ = app.emit(
+            "thumbnail-ready",
+            ThumbnailReadyPayload {
+                id: target.id,
+                thumbnail_path: cache,
+            },
+        );
+        return Ok(());
+    }
+
+    let ext = target.extension.unwrap_or_default();
+    if !thumbnails::can_generate_thumbnail(&ext) {
+        sqlx::query(
+            "UPDATE images SET thumbnail_status = 'unsupported', thumbnail_error = NULL WHERE id = ?",
+        )
+        .bind(&target.id)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Error al marcar unsupported {}: {}", image_id, e))?;
+        return Ok(());
+    }
+
+    sqlx::query(
+        "UPDATE images SET thumbnail_status = 'queued', thumbnail_error = NULL WHERE id = ?",
+    )
+    .bind(&target.id)
+    .execute(pool)
+    .await
+    .map_err(|e| format!("Error al encolar miniatura {}: {}", image_id, e))?;
+
+    let sem = thumbnail_semaphore();
+    let permit = sem
+        .acquire_owned()
+        .await
+        .map_err(|e| format!("Error de semáforo para {}: {}", image_id, e))?;
+
+    sqlx::query(
+        "UPDATE images SET thumbnail_status = 'processing' WHERE id = ?",
+    )
+    .bind(&target.id)
+    .execute(pool)
+    .await
+    .map_err(|e| format!("Error al marcar processing {}: {}", image_id, e))?;
+
+    let source_path = PathBuf::from(&target.path);
+    let generated = thumbnails::generate_and_update(pool, &source_path, &target.id, &ext).await;
+
+    drop(permit);
+
+    if let Some(path) = generated {
+        let _ = app.emit(
+            "thumbnail-ready",
+            ThumbnailReadyPayload {
+                id: target.id,
+                thumbnail_path: path,
+            },
+        );
+    }
+
+    Ok(())
 }
 
 /// Devuelve el listado completo de imágenes/videos desde la base de datos.
@@ -260,7 +352,9 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
 /// Ordena por `added_at` descendente (los más recientes primero).
 #[tauri::command]
 pub async fn get_all_images(pool: State<'_, SqlitePool>) -> Result<Vec<Image>, String> {
-    sqlx::query_as::<_, Image>("SELECT * FROM images ORDER BY added_at DESC")
+    sqlx::query_as::<_, Image>(
+        "SELECT * FROM images WHERE has_read_permission = 1 AND is_deleted = 0 ORDER BY added_at DESC",
+    )
         .fetch_all(pool.inner())
         .await
         .map_err(|e| format!("Error al obtener imágenes: {}", e))

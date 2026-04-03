@@ -18,7 +18,6 @@ pub fn ensure_thumbnails_dir() -> Result<PathBuf, String> {
     if !dir.exists() {
         std::fs::create_dir_all(&dir)
             .map_err(|e| format!("Error al crear directorio de miniaturas {:?}: {}", dir, e))?;
-        println!("[thumbnails] Directorio creado: {:?}", dir);
     }
     Ok(dir)
 }
@@ -39,7 +38,6 @@ pub fn generate_thumbnail(image_path: &Path, id: &str) -> Result<PathBuf, String
 
     // Si ya existe, no regenerar
     if thumb_path.exists() {
-        println!("[thumbnails] Ya existe miniatura para {}", id);
         return Ok(thumb_path);
     }
 
@@ -55,13 +53,12 @@ pub fn generate_thumbnail(image_path: &Path, id: &str) -> Result<PathBuf, String
         .save(&thumb_path)
         .map_err(|e| format!("Error al guardar miniatura {:?}: {}", thumb_path, e))?;
 
-    println!("[thumbnails] ✓ Generada: {:?}", thumb_path);
     Ok(thumb_path)
 }
 
 /// Genera la miniatura y actualiza la BD con el resultado.
 ///
-/// Si tiene éxito, actualiza `thumbnail_path` y `thumbnail_status = 'done'`
+/// Si tiene éxito, actualiza `thumbnail_path` y `thumbnail_status = 'ready'`
 /// y retorna `Some(ruta_miniatura)`.
 /// Si falla, registra el error en `thumbnail_error` y `thumbnail_status = 'error'`
 /// y retorna `None`.
@@ -72,8 +69,7 @@ pub async fn generate_and_update(
     ext: &str,
 ) -> Option<String> {
     if !can_generate_thumbnail(ext) {
-        // Para formatos no soportados (SVG, HEIC, RAW), omitir silenciosamente
-        println!("[thumbnails] Formato no soportado para miniatura: {} ({})", id, ext);
+        // Para formatos no soportados (SVG, HEIC, RAW), omitir silenciosamente.
         return None;
     }
 
@@ -91,7 +87,7 @@ pub async fn generate_and_update(
         Ok(Ok(thumb_path)) => {
             let thumb_str = thumb_path.to_string_lossy().to_string();
             let _ = sqlx::query(
-                "UPDATE images SET thumbnail_path = ?, thumbnail_status = 'done' WHERE id = ?"
+                "UPDATE images SET thumbnail_path = ?, thumbnail_status = 'ready', thumbnail_error = NULL WHERE id = ?"
             )
             .bind(&thumb_str)
             .bind(id)

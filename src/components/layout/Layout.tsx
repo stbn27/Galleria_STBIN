@@ -5,6 +5,7 @@ import TopBar from './TopBar';
 import JobsBar from '../shared/JobsBar';
 import JobsDrawer from '../shared/JobsDrawer';
 import LogsDrawer from '../shared/LogsDrawer';
+import ImageViewer from '../viewer/ImageViewer';
 import { useUiStore } from '../../store/uiStore';
 
 const Layout: React.FC = () => {
@@ -26,6 +27,7 @@ const Layout: React.FC = () => {
         </main>
         <JobsDrawer />
         <LogsDrawer />
+        <ImageViewer />
       </div>
     </div>
   );
