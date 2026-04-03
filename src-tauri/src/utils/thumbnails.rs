@@ -61,18 +61,20 @@ pub fn generate_thumbnail(image_path: &Path, id: &str) -> Result<PathBuf, String
 
 /// Genera la miniatura y actualiza la BD con el resultado.
 ///
-/// Si tiene éxito, actualiza `thumbnail_path` y `thumbnail_status = 'done'`.
-/// Si falla, registra el error en `thumbnail_error` y `thumbnail_status = 'error'`.
+/// Si tiene éxito, actualiza `thumbnail_path` y `thumbnail_status = 'done'`
+/// y retorna `Some(ruta_miniatura)`.
+/// Si falla, registra el error en `thumbnail_error` y `thumbnail_status = 'error'`
+/// y retorna `None`.
 pub async fn generate_and_update(
     pool: &SqlitePool,
     image_path: &Path,
     id: &str,
     ext: &str,
-) {
+) -> Option<String> {
     if !can_generate_thumbnail(ext) {
-        // Para formatos no soportados (SVG, HEIC, RAW), marcar como pendiente sin error
+        // Para formatos no soportados (SVG, HEIC, RAW), omitir silenciosamente
         println!("[thumbnails] Formato no soportado para miniatura: {} ({})", id, ext);
-        return;
+        return None;
     }
 
     // Clonar datos para el bloque bloqueante
@@ -95,6 +97,7 @@ pub async fn generate_and_update(
             .bind(id)
             .execute(pool)
             .await;
+            Some(thumb_str)
         }
         Ok(Err(e)) => {
             println!("[thumbnails] ✗ Error para {}: {}", id, e);
@@ -105,6 +108,7 @@ pub async fn generate_and_update(
             .bind(id)
             .execute(pool)
             .await;
+            None
         }
         Err(e) => {
             println!("[thumbnails] ✗ Error de tarea para {}: {}", id, e);
@@ -116,6 +120,7 @@ pub async fn generate_and_update(
             .bind(id)
             .execute(pool)
             .await;
+            None
         }
     }
 }

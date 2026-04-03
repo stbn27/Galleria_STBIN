@@ -1,11 +1,19 @@
+use serde::Serialize;
 use sqlx::SqlitePool;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::db::schema::Image;
 use crate::utils::paths::get_scan_roots;
 use crate::utils::thumbnails;
+
+/// Payload del evento `thumbnail-ready` emitido al frontend.
+#[derive(Debug, Clone, Serialize)]
+pub struct ThumbnailReadyPayload {
+    pub id: String,
+    pub thumbnail_path: String,
+}
 
 /// Extensiones de imagen soportadas.
 const IMAGE_EXTENSIONS: &[&str] = &[
@@ -47,7 +55,7 @@ fn detect_media_type(ext: &str) -> Option<&'static str> {
 /// (`discovery_status = 'found'`, demás estados en `'pending'`).
 /// Usa `INSERT OR IGNORE` para no duplicar entradas existentes por `path`.
 #[tauri::command]
-pub async fn scan_local_media(pool: State<'_, SqlitePool>) -> Result<u32, String> {
+pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Result<u32, String> {
     let roots = get_scan_roots();
     let mut inserted: u32 = 0;
     let mut scanned: u32 = 0;
@@ -150,14 +158,27 @@ pub async fn scan_local_media(pool: State<'_, SqlitePool>) -> Result<u32, String
                         inserted += 1;
                         println!("[scan] ✓ Insertado: {}", filename);
 
-                        // Generar miniatura para imágenes recién insertadas
+                        // Generar miniatura en segundo plano para no bloquear el bucle
                         if media_type == "image" {
-                            thumbnails::generate_and_update(
-                                pool.inner(),
-                                path,
-                                &id,
-                                ext,
-                            ).await;
+                            let pool_clone = pool.inner().clone();
+                            let path_clone = path.to_path_buf();
+                            let id_clone = id.clone();
+                            let ext_clone = ext.to_string();
+                            let app_clone = app.clone();
+
+                            tokio::spawn(async move {
+                                if let Some(thumb_path) = thumbnails::generate_and_update(
+                                    &pool_clone,
+                                    &path_clone,
+                                    &id_clone,
+                                    &ext_clone,
+                                ).await {
+                                    let _ = app_clone.emit("thumbnail-ready", ThumbnailReadyPayload {
+                                        id: id_clone,
+                                        thumbnail_path: thumb_path,
+                                    });
+                                }
+                            });
                         }
                     } else {
                         println!("[scan] — Ya existe: {}", filename);

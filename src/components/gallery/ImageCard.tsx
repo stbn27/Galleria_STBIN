@@ -24,9 +24,8 @@ const ImageCard: React.FC<ImageCardProps> = ({ item, onClick }) => {
   const isVideo = item.media_type === 'video';
   const isFavorite = item.is_favorite === 1;
 
-  // Preferir thumbnail, fallback a path original
-  const rawPath = item.thumbnail_path ?? item.path;
-  const imageSrc = !isCorrupted && rawPath ? convertFileSrc(rawPath) : null;
+  // Solamente utilizar thumbnail_path. Si no existe, mostrar placeholder para no saturar RAM con la imagen original.
+  const imageSrc = !isCorrupted && item.thumbnail_path ? convertFileSrc(item.thumbnail_path) : null;
 
   const handleSelect = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -39,25 +38,30 @@ const ImageCard: React.FC<ImageCardProps> = ({ item, onClick }) => {
 
   return (
     <div
-      className="image-card relative cursor-pointer overflow-hidden group"
+      className="image-card relative cursor-pointer overflow-hidden group bg-[var(--bg-tertiary)]"
       style={{ borderRadius: 'var(--radius-md)' }}
       onClick={onClick}
     >
       {/* Contenido de la imagen o placeholder */}
-      {isCorrupted || !imageSrc ? (
+      {isCorrupted ? (
         <div className="w-full aspect-square bg-[var(--bg-tertiary)] flex flex-col items-center justify-center text-[var(--text-muted)] gap-2">
           <AlertCircle size={28} />
           <span className="text-xs text-center px-2">
             {isVideo ? 'No se pudo abrir el video' : 'No se pudo abrir la imagen'}
           </span>
         </div>
+      ) : !imageSrc ? (
+         <div className="w-full aspect-square bg-[var(--bg-tertiary)] flex flex-col items-center justify-center text-[var(--text-muted)] gap-2 animate-pulse">
+           <div className="w-8 h-8 rounded-full border-2 border-[var(--text-muted)] border-t-transparent animate-spin" />
+           <span className="text-xs text-center px-2">Procesando...</span>
+         </div>
       ) : (
         <img
           src={imageSrc}
           alt={item.filename}
           loading="lazy"
           decoding="async"
-          className="w-full h-full block object-cover"
+          className="w-full h-full block object-cover transition-opacity duration-300"
           style={{
             aspectRatio: item.width && item.height
               ? `${item.width} / ${item.height}`

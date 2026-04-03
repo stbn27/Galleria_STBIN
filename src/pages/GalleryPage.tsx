@@ -10,12 +10,20 @@ import { useUiStore } from '../store/uiStore';
  * Muestra una grilla CSS responsiva con las imágenes cargadas desde el backend.
  */
 const GalleryPage: React.FC = () => {
-  const { images, loading, scanning, error, fetchImages, scanImages } = useImageStore();
+  const { images, loading, scanning, error, fetchImages, scanImages, initThumbnailListener } = useImageStore();
   const { openViewer } = useUiStore();
 
   useEffect(() => {
     fetchImages();
   }, [fetchImages]);
+
+  // Escuchar el evento 'thumbnail-ready' emitido por Rust cuando una miniatura
+  // está lista; actualiza el item directamente sin refetch completo.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    initThumbnailListener().then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, [initThumbnailListener]);
 
   if (loading) {
     return (
