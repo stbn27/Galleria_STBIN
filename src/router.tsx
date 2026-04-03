@@ -43,10 +43,6 @@ export const router = createBrowserRouter([
         element: <PlaceholderPage title="Mapa" />
       },
       {
-        path: 'directories',
-        element: <PlaceholderPage title="Directorios" />
-      },
-      {
         path: 'trash',
         element: <PlaceholderPage title="Papelera" />
       }
