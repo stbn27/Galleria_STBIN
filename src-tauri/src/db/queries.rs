@@ -2,6 +2,7 @@ use sqlx::{Error, SqlitePool};
 use super::schema::Image;
 
 /// Obtiene medios cuyas miniaturas aún no se han solicitado.
+#[allow(dead_code)]
 pub async fn get_missing_thumbnails(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
     sqlx::query_as::<_, Image>(
         "SELECT * FROM images
@@ -14,6 +15,7 @@ pub async fn get_missing_thumbnails(pool: &SqlitePool) -> Result<Vec<Image>, Err
 }
 
 /// Obtiene medios con miniaturas en cola o en procesamiento.
+#[allow(dead_code)]
 pub async fn get_active_thumbnail_jobs(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
     sqlx::query_as::<_, Image>(
         "SELECT * FROM images
@@ -25,6 +27,7 @@ pub async fn get_active_thumbnail_jobs(pool: &SqlitePool) -> Result<Vec<Image>, 
 }
 
 /// Obtiene medios sin soporte de miniaturas para evitar loops de reproceso.
+#[allow(dead_code)]
 pub async fn get_unsupported_thumbnails(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
     sqlx::query_as::<_, Image>(
         "SELECT * FROM images
@@ -36,6 +39,7 @@ pub async fn get_unsupported_thumbnails(pool: &SqlitePool) -> Result<Vec<Image>,
 }
 
 /// Obtiene medios pendientes de detección facial
+#[allow(dead_code)]
 pub async fn get_pending_faces(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
     sqlx::query_as::<_, Image>("SELECT * FROM images WHERE face_status = 'pending'")
         .fetch_all(pool)
@@ -43,6 +47,7 @@ pub async fn get_pending_faces(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
 }
 
 /// Obtiene medios con rostros desactualizados (`stale`)
+#[allow(dead_code)]
 pub async fn get_stale_faces(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
     sqlx::query_as::<_, Image>("SELECT * FROM images WHERE face_status = 'stale'")
         .fetch_all(pool)
@@ -50,6 +55,7 @@ pub async fn get_stale_faces(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
 }
 
 /// Obtiene medios corruptos
+#[allow(dead_code)]
 pub async fn get_corrupted_media(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
     sqlx::query_as::<_, Image>("SELECT * FROM images WHERE is_corrupted = 1")
         .fetch_all(pool)
@@ -57,6 +63,7 @@ pub async fn get_corrupted_media(pool: &SqlitePool) -> Result<Vec<Image>, Error>
 }
 
 /// Obtiene medios sin permiso de lectura
+#[allow(dead_code)]
 pub async fn get_no_permission_media(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
     sqlx::query_as::<_, Image>("SELECT * FROM images WHERE has_read_permission = 0")
         .fetch_all(pool)
@@ -64,6 +71,7 @@ pub async fn get_no_permission_media(pool: &SqlitePool) -> Result<Vec<Image>, Er
 }
 
 /// Obtiene candidatos a duplicados agrupados por `binary_hash` o `perceptual_hash`
+#[allow(dead_code)]
 pub async fn get_duplicate_candidates(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
     // Retorna todos los que compartan hash con al menos otro
     sqlx::query_as::<_, Image>(
@@ -80,6 +88,7 @@ pub async fn get_duplicate_candidates(pool: &SqlitePool) -> Result<Vec<Image>, E
 }
 
 /// Asegurar que solo exista una persona con `is_owner = 1`
+#[allow(dead_code)]
 pub async fn ensure_single_owner(pool: &SqlitePool, owner_id: &str) -> Result<(), Error> {
     let mut tx = pool.begin().await?;
     
@@ -97,3 +106,28 @@ pub async fn ensure_single_owner(pool: &SqlitePool, owner_id: &str) -> Result<()
     tx.commit().await?;
     Ok(())
 }
+
+/// Obtiene el árbol de directorios con sus conteos
+pub async fn get_directory_stats(pool: &SqlitePool) -> Result<Vec<(String, i64)>, Error> {
+    sqlx::query_as::<_, (String, i64)>(
+        "SELECT directory as dir, COUNT(id) as count FROM images 
+         WHERE is_deleted = 0 AND is_corrupted = 0 AND has_read_permission = 1 
+         GROUP BY directory 
+         ORDER BY directory"
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// Obtiene imágenes de un directorio
+pub async fn get_images_by_directory(pool: &SqlitePool, directory: &str) -> Result<Vec<Image>, Error> {
+    sqlx::query_as::<_, Image>(
+        "SELECT * FROM images 
+         WHERE directory = ? AND is_deleted = 0 AND has_read_permission = 1 
+         ORDER BY taken_at DESC, added_at DESC"
+    )
+    .bind(directory)
+    .fetch_all(pool)
+    .await
+}
+

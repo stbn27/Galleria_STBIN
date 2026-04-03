@@ -50,21 +50,25 @@ pub fn get_thumbnails_dir() -> PathBuf {
 }
 
 /// Obtiene la ruta al directorio de recortes de rostros.
+#[allow(dead_code)]
 pub fn get_faces_dir() -> PathBuf {
     get_data_dir().join("faces")
 }
 
 /// Obtiene la ruta al directorio de logs.
+#[allow(dead_code)]
 pub fn get_logs_dir() -> PathBuf {
     get_data_dir().join("logs")
 }
 
 /// Obtiene la ruta al directorio de caché de geocodificación.
+#[allow(dead_code)]
 pub fn get_geo_cache_dir() -> PathBuf {
     get_data_dir().join("geo_cache")
 }
 
 /// Obtiene la ruta al directorio de la papelera.
+#[allow(dead_code)]
 pub fn get_trash_dir() -> PathBuf {
     get_data_dir().join("trash")
 }

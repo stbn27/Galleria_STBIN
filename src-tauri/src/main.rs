@@ -31,6 +31,10 @@ fn main() {
             commands::images::get_all_images,
             commands::images::request_thumbnail,
             commands::images::request_thumbnails_for_visible,
+            commands::directories::get_directories,
+            commands::directories::get_directory_media,
+            commands::directories::delete_directory,
+            commands::directories::move_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

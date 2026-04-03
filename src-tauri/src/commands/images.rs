@@ -49,11 +49,13 @@ const VIDEO_EXTENSIONS: &[&str] = &[
 ];
 
 /// Verifica si una extensión corresponde a una imagen soportada.
+#[allow(dead_code)]
 fn is_supported_image(ext: &str) -> bool {
     IMAGE_EXTENSIONS.contains(&ext.to_lowercase().as_str())
 }
 
 /// Verifica si una extensión corresponde a un video soportado.
+#[allow(dead_code)]
 fn is_supported_video(ext: &str) -> bool {
     VIDEO_EXTENSIONS.contains(&ext.to_lowercase().as_str())
 }

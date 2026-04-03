@@ -64,6 +64,7 @@ pub struct Image {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[allow(dead_code)]
 pub struct Person {
     pub id: String,
     pub name: Option<String>,
@@ -76,6 +77,7 @@ pub struct Person {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[allow(dead_code)]
 pub struct Face {
     pub id: String,
     pub image_id: String,
@@ -94,6 +96,7 @@ pub struct Face {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[allow(dead_code)]
 pub struct FaceSuggestion {
     pub id: String,
     pub face_id: String,
@@ -104,6 +107,7 @@ pub struct FaceSuggestion {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[allow(dead_code)]
 pub struct Album {
     pub id: String,
     pub name: String,
@@ -115,6 +119,7 @@ pub struct Album {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[allow(dead_code)]
 pub struct AlbumImage {
     pub album_id: String,
     pub image_id: String,
@@ -122,6 +127,7 @@ pub struct AlbumImage {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[allow(dead_code)]
 pub struct Job {
     pub id: String,
     pub job_type: String,
@@ -138,6 +144,7 @@ pub struct Job {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[allow(dead_code)]
 pub struct JobLog {
     pub id: String,
     pub job_id: String,
@@ -147,6 +154,7 @@ pub struct JobLog {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[allow(dead_code)]
 pub struct ReverseGeocodeCache {
     pub id: String,
     pub latitude: f64,
@@ -158,6 +166,7 @@ pub struct ReverseGeocodeCache {
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
+#[allow(dead_code)]
 pub struct Setting {
     pub key: String,
     pub value: String,
