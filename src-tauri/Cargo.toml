@@ -1,7 +1,7 @@
 [package]
 name = "curator"
 version = "1.0.0"
-description = "Curator Gallery"
+description = "STBIN Galeria"
 authors = ["Esteban"]
 license = "MIT"
 repository = "https://github.com/esteban/curator"
@@ -12,17 +12,19 @@ rust-version = "1.70"
 tauri-build = { version = "2.0.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.0.0", features = [] }
+tauri = { version = "2.0.0", features = ["protocol-asset"] }
 tauri-plugin-shell = "2.0.0"
 tauri-plugin-fs = "2.0.0"
 tauri-plugin-dialog = "2.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-native-tls", "migrate"] }
+sqlx = { version = "0.7", features = ["sqlite", "chrono", "uuid", "runtime-tokio-native-tls", "migrate"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+walkdir = "2"
+image = "0.25"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

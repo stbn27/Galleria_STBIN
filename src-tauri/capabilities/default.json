@@ -1,0 +1,28 @@
+{
+  "identifier": "default",
+  "description": "Capacidades por defecto para Curator Gallery",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "dialog:default",
+    {
+      "identifier": "fs:default",
+      "allow": [
+        { "path": "**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read",
+      "allow": [
+        { "path": "**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        { "path": "**" }
+      ]
+    }
+  ]
+}

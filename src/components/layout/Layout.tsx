@@ -21,7 +21,7 @@ const Layout: React.FC = () => {
       <div className="flex-1 flex flex-col relative w-full h-full overflow-hidden">
         <TopBar />
         <JobsBar />
-        <main className="flex-1 relative overflow-y-auto w-full h-full">
+        <main className="flex-1 relative overflow-y-auto min-h-0 w-full">
           <Outlet />
         </main>
         <JobsDrawer />

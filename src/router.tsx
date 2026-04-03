@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
+import GalleryPage from './pages/GalleryPage';
 
 // Placeholder Pages
 const PlaceholderPage = ({ title }: { title: string }) => (
@@ -22,7 +23,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'gallery',
-        element: <PlaceholderPage title="Galería" />
+        element: <GalleryPage />
       },
       {
         path: 'albums',
