@@ -18,7 +18,7 @@ static THUMBNAIL_SEMAPHORE: OnceLock<Arc<Semaphore>> = OnceLock::new();
 /// Obtiene (o inicializa) el semáforo compartido de miniaturas.
 fn thumbnail_semaphore() -> Arc<Semaphore> {
     THUMBNAIL_SEMAPHORE
-        .get_or_init(|| Arc::new(Semaphore::new(4)))
+        .get_or_init(|| Arc::new(Semaphore::new(1)))
         .clone()
 }
 
@@ -195,6 +195,7 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
                                         thumbnail_path: thumb_path,
                                     });
                                 }
+                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                                 // _permit se libera aquí automáticamente (Drop)
                             });
                         }
@@ -242,6 +243,7 @@ pub async fn scan_local_media(app: AppHandle, pool: State<'_, SqlitePool>) -> Re
                         thumbnail_path: thumb_path,
                     });
                 }
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 // _permit se libera aquí automáticamente (Drop)
             });
         }
