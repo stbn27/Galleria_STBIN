@@ -1,6 +1,15 @@
 use sqlx::{Error, SqlitePool};
 use super::schema::Image;
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct DirectoryPreviewRow {
+    pub directory: String,
+    pub id: String,
+    pub path: String,
+    pub thumbnail_path: Option<String>,
+    pub media_type: String,
+}
+
 /// Obtiene medios cuyas miniaturas aún no se han solicitado.
 #[allow(dead_code)]
 pub async fn get_missing_thumbnails(pool: &SqlitePool) -> Result<Vec<Image>, Error> {
@@ -129,5 +138,31 @@ pub async fn get_images_by_directory(pool: &SqlitePool, directory: &str) -> Resu
     .bind(directory)
     .fetch_all(pool)
     .await
+}
+
+/// Obtiene hasta 3 previews por directorio para sidebar visual.
+pub async fn get_directory_previews(pool: &SqlitePool) -> Result<Vec<DirectoryPreviewRow>, Error> {
+        sqlx::query_as::<_, DirectoryPreviewRow>(
+                "SELECT directory, id, path, thumbnail_path, media_type
+                 FROM (
+                        SELECT directory,
+                                     id,
+                                     path,
+                                     thumbnail_path,
+                                     media_type,
+                                     ROW_NUMBER() OVER (
+                                         PARTITION BY directory
+                                         ORDER BY COALESCE(taken_at, added_at, modified_at) DESC, id DESC
+                                     ) AS rn
+                        FROM images
+                        WHERE is_deleted = 0
+                            AND is_corrupted = 0
+                            AND has_read_permission = 1
+                 ) ranked
+                 WHERE rn <= 3
+                 ORDER BY directory, rn"
+        )
+        .fetch_all(pool)
+        .await
 }
 

@@ -32,7 +32,13 @@ fn main() {
             commands::images::request_thumbnail,
             commands::images::request_thumbnails_for_visible,
             commands::directories::get_directories,
+            commands::directories::get_directories_flat,
             commands::directories::get_directory_media,
+            commands::directories::get_directory_summary,
+            commands::directories::reanalyze_directory,
+            commands::directories::reprocess_faces_in_directory,
+            commands::directories::rebuild_thumbnails_for_directory,
+            commands::directories::find_duplicates_in_directory,
             commands::directories::delete_directory,
             commands::directories::move_directory,
         ])
